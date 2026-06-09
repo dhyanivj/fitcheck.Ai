@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "deploy": "gcloud run deploy fitcheckai --source . --project starry-hawk-497801-t4 --region us-east4"
   },
   "dependencies": {
     "framer-motion": "^12.40.0",

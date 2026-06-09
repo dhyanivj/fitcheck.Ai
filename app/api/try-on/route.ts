@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { GoogleAuth } from "google-auth-library";
+import { saveTryOnRecord } from "../../../lib/gcs";
 
 // Set max duration for longer AI generation calls (VTO usually takes 10-25 seconds)
 export const maxDuration = 120;
@@ -18,9 +19,19 @@ function cleanBase64(base64Str: string): string {
 }
 
 export async function POST(request: Request) {
+  const tryOnId = `tryon_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+  const timestamp = new Date().toISOString();
+  let garmentMode = "upload";
+  let productUrl = "";
+  let personImageBase64 = "";
+  let productImageBase64 = "";
+
   try {
     const body = await request.json();
-    const { personImageBase64, productImageBase64 } = body;
+    personImageBase64 = body.personImageBase64;
+    productImageBase64 = body.productImageBase64;
+    garmentMode = body.garmentMode || (productImageBase64?.startsWith("http") ? "link" : "upload");
+    productUrl = body.productUrl || "";
 
     // Validate inputs
     if (!personImageBase64 || !productImageBase64) {
@@ -150,11 +161,25 @@ export async function POST(request: Request) {
     const result = await apiResponse.json();
 
     if (!apiResponse.ok) {
+      const errorMsg = result.error?.message || JSON.stringify(result);
       console.error("Vertex AI API response error:", result);
+
+      // Silent logging of Vertex AI failure
+      saveTryOnRecord({
+        id: tryOnId,
+        timestamp,
+        garmentMode,
+        productUrl,
+        personImageBase64,
+        productImageBase64,
+        status: "failed",
+        error: `Vertex AI Error: ${errorMsg}`,
+      }).catch((err) => console.error("Background logging failed:", err));
+
       return NextResponse.json(
         {
           error: "Vertex AI Try-On prediction model returned an error.",
-          details: result.error?.message || JSON.stringify(result),
+          details: errorMsg,
         },
         { status: apiResponse.status }
       );
@@ -162,8 +187,21 @@ export async function POST(request: Request) {
 
     const prediction = result.predictions?.[0];
     if (!prediction) {
+      const errorMsg = "Vertex AI prediction request succeeded but returned no predictions array.";
+
+      saveTryOnRecord({
+        id: tryOnId,
+        timestamp,
+        garmentMode,
+        productUrl,
+        personImageBase64,
+        productImageBase64,
+        status: "failed",
+        error: errorMsg,
+      }).catch((err) => console.error("Background logging failed:", err));
+
       return NextResponse.json(
-        { error: "Vertex AI prediction request succeeded but returned no predictions array." },
+        { error: errorMsg },
         { status: 500 }
       );
     }
@@ -181,10 +219,23 @@ export async function POST(request: Request) {
     } else if (prediction.image?.image_bytes) {
       outputImageBase64 = prediction.image.image_bytes;
     } else {
+      const errorMsg = "Failed to extract image bytes from prediction response. Schema mismatch.";
       console.error("Could not parse prediction response keys:", prediction);
+
+      saveTryOnRecord({
+        id: tryOnId,
+        timestamp,
+        garmentMode,
+        productUrl,
+        personImageBase64,
+        productImageBase64,
+        status: "failed",
+        error: errorMsg,
+      }).catch((err) => console.error("Background logging failed:", err));
+
       return NextResponse.json(
         {
-          error: "Failed to extract image bytes from prediction response. Schema mismatch.",
+          error: errorMsg,
           debugPayload: prediction,
         },
         { status: 500 }
@@ -193,11 +244,38 @@ export async function POST(request: Request) {
 
     // Return output image base64
     const mimeType = prediction.mimeType || "image/png";
+    const resultBase64 = `data:${mimeType};base64,${outputImageBase64}`;
+
+    // Silent logging of success
+    saveTryOnRecord({
+      id: tryOnId,
+      timestamp,
+      garmentMode,
+      productUrl,
+      personImageBase64,
+      productImageBase64,
+      resultImageBase64: resultBase64,
+      status: "success",
+    }).catch((err) => console.error("Background logging failed:", err));
+
     return NextResponse.json({
-      generatedImageBase64: `data:${mimeType};base64,${outputImageBase64}`,
+      generatedImageBase64: resultBase64,
     });
   } catch (error: any) {
     console.error("Vertex AI Virtual Try-On main error:", error);
+
+    // Silent logging of general failure
+    saveTryOnRecord({
+      id: tryOnId,
+      timestamp,
+      garmentMode,
+      productUrl,
+      personImageBase64,
+      productImageBase64,
+      status: "failed",
+      error: error.message || String(error),
+    }).catch((err) => console.error("Background logging failed:", err));
+
     return NextResponse.json(
       { error: `Internal Server Error: ${error.message || error}` },
       { status: 500 }

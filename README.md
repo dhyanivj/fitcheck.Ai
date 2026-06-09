@@ -11,6 +11,8 @@ FitCheck.AI is a premium, modern web application built using **Next.js 16**, **R
 - **🔮 Vertex AI Try-On Pipeline**: Powered by Google Cloud's `virtual-try-on-001` model, producing high-fidelity virtual fittings with realistic folds, shadows, and fabric drape.
 - **✨ Premium UX/UI Design**: Fluid layout transitions, active micro-animations powered by `framer-motion`, and a clean, high-contrast dark/light responsive interface.
 - **🔒 Secure & Protected**: Designed to run environment-isolated. No API keys or service account credentials are saved to Git.
+- **📊 Analytics Dashboard**: A passcode-secured backend dashboard at `/dashboard` to view statistics (usage count, success rate, mode splits) and inspect past try-ons side-by-side.
+- **☁️ Silent GCS Logging**: All try-on actions and images are silently tracked and archived to Google Cloud Storage (GCS) with zero latency impact to the frontend user interface.
 
 ---
 
@@ -78,6 +80,12 @@ GOOGLE_CLOUD_PROJECT="your-gcp-project-id"
 
 # Region where Vertex AI models are deployed (e.g. us-central1)
 GOOGLE_CLOUD_LOCATION="us-central1"
+
+# Dashboard passcode (Required for the analytics dashboard at /dashboard)
+DASHBOARD_PASSCODE="your-passcode"
+
+# Google Cloud Storage Bucket (Optional: defaults to [GOOGLE_CLOUD_PROJECT]-source-bucket)
+# GOOGLE_CLOUD_STORAGE_BUCKET="your-gcs-bucket-name"
 ```
 
 > [!IMPORTANT]
@@ -97,6 +105,7 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to experie
 - `npm run build` — Generates an optimized production build.
 - `npm run start` — Starts the built Next.js application in production mode.
 - `npm run lint` — Runs ESLint checks to enforce code quality.
+- `npm run deploy` — Compiles and redeploys the application container directly to Google Cloud Run.
 
 ## 🤝 Contributing
 Contributions, issues, and feature requests are welcome! Feel free to open a pull request or submit feedback.
