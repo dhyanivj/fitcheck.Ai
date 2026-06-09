@@ -201,6 +201,9 @@ export async function POST(request: Request) {
     console.log(`Scraped Image Result: ${scrapedImageUrl}`);
 
     if (!scrapedImageUrl) {
+      const pageTitle = await page.title();
+      const pageContent = await page.content();
+      console.log(`Failed to scrape. Page title: "${pageTitle}". HTML Snippet: ${pageContent.substring(0, 1000)}`);
       return NextResponse.json(
         { error: "Could not locate a high-resolution product image on the page." },
         { status: 422 }
