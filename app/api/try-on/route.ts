@@ -22,15 +22,18 @@ export async function POST(request: Request) {
   const tryOnId = `tryon_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
   const timestamp = new Date().toISOString();
   let garmentMode = "upload";
+  let garmentType = "tops";
   let productUrl = "";
   let personImageBase64 = "";
   let productImageBase64 = "";
+  let resolvedGarmentType = "tops";
 
   try {
     const body = await request.json();
     personImageBase64 = body.personImageBase64;
     productImageBase64 = body.productImageBase64;
     garmentMode = body.garmentMode || (productImageBase64?.startsWith("http") ? "link" : "upload");
+    garmentType = body.garmentType || "tops";
     productUrl = body.productUrl || "";
 
     // Validate inputs
@@ -126,6 +129,35 @@ export async function POST(request: Request) {
 
     console.log(`Sending prediction request to Vertex AI at: ${url}`);
 
+    // Map garmentType to Vertex AI category
+    let vertexGarmentType = "UPPER_BODY";
+    if (garmentType === "bottoms") {
+      vertexGarmentType = "LOWER_BODY";
+    } else if (garmentType === "dress") {
+      vertexGarmentType = "DRESS";
+    } else if (garmentType === "auto") {
+      // Auto-detect based on productUrl keywords
+      const urlLower = (productUrl || "").toLowerCase();
+      if (
+        /pants|jean|skirt|trouser|short|bottom|legging|jogger|chino|pajama|palazzo|denim-shorts/.test(
+          urlLower
+        )
+      ) {
+        vertexGarmentType = "LOWER_BODY";
+      } else if (/dress|gown|frock|jumpsuit|one-piece|maxi|midi/.test(urlLower)) {
+        vertexGarmentType = "DRESS";
+      } else {
+        vertexGarmentType = "UPPER_BODY";
+      }
+    }
+
+    resolvedGarmentType =
+      vertexGarmentType === "LOWER_BODY"
+        ? "bottoms"
+        : vertexGarmentType === "DRESS"
+        ? "dress"
+        : "tops";
+
     // Vertex AI Virtual Try-On Predict payload structure
     const payload = {
       instances: [
@@ -146,6 +178,7 @@ export async function POST(request: Request) {
       ],
       parameters: {
         numberOfImages: 1,
+        garmentType: vertexGarmentType,
       },
     };
 
@@ -158,17 +191,29 @@ export async function POST(request: Request) {
       body: JSON.stringify(payload),
     });
 
-    const result = await apiResponse.json();
+    let result: any = null;
+    let errorMsg = "";
+
+    const responseText = await apiResponse.text();
+    try {
+      result = JSON.parse(responseText);
+    } catch (parseErr) {
+      console.error("Failed to parse Vertex AI API response as JSON. Response text:", responseText);
+      errorMsg = responseText || `HTTP Error ${apiResponse.status}: ${apiResponse.statusText}`;
+    }
 
     if (!apiResponse.ok) {
-      const errorMsg = result.error?.message || JSON.stringify(result);
-      console.error("Vertex AI API response error:", result);
+      if (!errorMsg) {
+        errorMsg = result?.error?.message || JSON.stringify(result);
+      }
+      console.error("Vertex AI API response error:", errorMsg);
 
       // Silent logging of Vertex AI failure
       saveTryOnRecord({
         id: tryOnId,
         timestamp,
         garmentMode,
+        garmentType: resolvedGarmentType,
         productUrl,
         personImageBase64,
         productImageBase64,
@@ -185,6 +230,13 @@ export async function POST(request: Request) {
       );
     }
 
+    if (!result) {
+      return NextResponse.json(
+        { error: "Invalid response from Vertex AI API: " + errorMsg },
+        { status: 502 }
+      );
+    }
+
     const prediction = result.predictions?.[0];
     if (!prediction) {
       const errorMsg = "Vertex AI prediction request succeeded but returned no predictions array.";
@@ -193,6 +245,7 @@ export async function POST(request: Request) {
         id: tryOnId,
         timestamp,
         garmentMode,
+        garmentType: resolvedGarmentType,
         productUrl,
         personImageBase64,
         productImageBase64,
@@ -226,6 +279,7 @@ export async function POST(request: Request) {
         id: tryOnId,
         timestamp,
         garmentMode,
+        garmentType: resolvedGarmentType,
         productUrl,
         personImageBase64,
         productImageBase64,
@@ -251,6 +305,7 @@ export async function POST(request: Request) {
       id: tryOnId,
       timestamp,
       garmentMode,
+      garmentType: resolvedGarmentType,
       productUrl,
       personImageBase64,
       productImageBase64,
@@ -269,6 +324,7 @@ export async function POST(request: Request) {
       id: tryOnId,
       timestamp,
       garmentMode,
+      garmentType: resolvedGarmentType,
       productUrl,
       personImageBase64,
       productImageBase64,

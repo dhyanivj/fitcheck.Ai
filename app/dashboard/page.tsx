@@ -21,6 +21,7 @@ interface StatsEntry {
   id: string;
   timestamp: string;
   garmentMode: "link" | "upload" | "camera";
+  garmentType?: "tops" | "bottoms" | "dress";
   productUrl?: string;
   status: "success" | "failed";
   error?: string | null;
@@ -139,6 +140,47 @@ export default function Dashboard() {
     },
     { link: 0, upload: 0, camera: 0 } as Record<string, number>
   );
+
+  const garmentTypeDistribution = stats.reduce(
+    (acc, curr) => {
+      const type = curr.garmentType || "tops";
+      acc[type] = (acc[type] || 0) + 1;
+      return acc;
+    },
+    { tops: 0, bottoms: 0, dress: 0 } as Record<string, number>
+  );
+
+  const dailyVolume = (() => {
+    const counts: Record<string, { total: number; success: number }> = {};
+    const daysToShow = 7;
+    
+    for (let i = daysToShow - 1; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dateStr = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      counts[dateStr] = { total: 0, success: 0 };
+    }
+
+    const sortedStats = [...stats].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+
+    sortedStats.forEach((s) => {
+      try {
+        const dateStr = new Date(s.timestamp).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+        if (counts[dateStr]) {
+          counts[dateStr].total++;
+          if (s.status === "success") counts[dateStr].success++;
+        }
+      } catch (e) {}
+    });
+
+    return Object.entries(counts).map(([date, data]) => ({
+      date,
+      total: data.total,
+      success: data.success,
+    }));
+  })();
+
+  const maxVal = Math.max(...dailyVolume.map((d) => d.total), 4);
 
   const formatDate = (isoString: string) => {
     try {
@@ -297,6 +339,187 @@ export default function Dashboard() {
               </motion.div>
             </div>
 
+            {/* Interactive Charts Section */}
+            {totalTries > 0 && (
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Chart 1: Volume Over Time */}
+                <div className="bg-white border border-zinc-200 rounded-xl p-5 shadow-sm lg:col-span-2 flex flex-col justify-between">
+                  <div className="flex flex-col gap-1 mb-4">
+                    <span className="text-[10px] font-mono text-zinc-400 uppercase tracking-widest font-semibold">Activity Trend</span>
+                    <h4 className="text-sm font-semibold text-zinc-900">Attempts Over Time (Past 7 Days)</h4>
+                  </div>
+                  <div className="w-full">
+                    <svg viewBox="0 0 500 120" className="w-full h-auto">
+                      {/* Horizontal gridlines */}
+                      <line x1="30" y1="10" x2="490" y2="10" stroke="#f4f4f5" strokeDasharray="3 3" />
+                      <line x1="30" y1="52.5" x2="490" y2="52.5" stroke="#f4f4f5" strokeDasharray="3 3" />
+                      <line x1="30" y1="95" x2="490" y2="95" stroke="#e4e4e7" />
+
+                      {/* Y-axis labels */}
+                      <text x="22" y="14" textAnchor="end" className="text-[9px] font-mono fill-zinc-400 font-bold">{maxVal}</text>
+                      <text x="22" y="56" textAnchor="end" className="text-[9px] font-mono fill-zinc-400 font-bold">{Math.round(maxVal / 2)}</text>
+                      <text x="22" y="99" textAnchor="end" className="text-[9px] font-mono fill-zinc-400 font-bold">0</text>
+
+                      {/* Bars */}
+                      {dailyVolume.map((d, idx) => {
+                        const graphWidth = 450;
+                        const graphHeight = 85;
+                        const barWidth = (graphWidth / 7) - 16;
+                        const x = 30 + idx * (graphWidth / 7) + 8;
+                        const totalHeight = (d.total / maxVal) * graphHeight;
+                        const successHeight = (d.success / maxVal) * graphHeight;
+                        const totalY = 10 + graphHeight - totalHeight;
+                        const successY = 10 + graphHeight - successHeight;
+
+                        return (
+                          <g key={idx} className="group">
+                            <rect
+                              x={x}
+                              y={totalY}
+                              width={barWidth}
+                              height={totalHeight}
+                              rx={3}
+                              fill="#f4f4f5"
+                              className="transition-colors group-hover:fill-zinc-200"
+                            />
+                            {d.success > 0 && (
+                              <rect
+                                x={x}
+                                y={successY}
+                                width={barWidth}
+                                height={successHeight}
+                                rx={3}
+                                fill="#18181b"
+                                className="transition-colors group-hover:fill-zinc-800"
+                              />
+                            )}
+                            <text
+                              x={x + barWidth / 2}
+                              y="112"
+                              textAnchor="middle"
+                              className="text-[9px] font-mono fill-zinc-400 font-semibold uppercase tracking-wider"
+                            >
+                              {d.date}
+                            </text>
+                            <title>{`${d.date}: ${d.success} successes / ${d.total} total runs`}</title>
+                          </g>
+                        );
+                      })}
+                    </svg>
+                  </div>
+                  <div className="flex items-center gap-4 mt-3 text-[11px] font-mono text-zinc-500">
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-2.5 h-2.5 rounded bg-zinc-900"></div>
+                      <span>Success</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-2.5 h-2.5 rounded bg-zinc-100 border border-zinc-200"></div>
+                      <span>Failure</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Chart 2: Success Rate Donut & Split breakdown */}
+                <div className="bg-white border border-zinc-200 rounded-xl p-5 shadow-sm flex flex-col justify-between">
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[10px] font-mono text-zinc-400 uppercase tracking-widest font-semibold">Distribution</span>
+                    <h4 className="text-sm font-semibold text-zinc-900">Performance & Usage Split</h4>
+                  </div>
+                  
+                  {/* Success Rate Donut */}
+                  <div className="flex items-center gap-6 my-2">
+                    <div className="relative w-20 h-20 flex-shrink-0">
+                      <svg width="80" height="80" viewBox="0 0 100 100" className="transform -rotate-90 w-full h-full">
+                        {/* Background Track */}
+                        <circle cx="50" cy="50" r="38" fill="transparent" stroke="#f4f4f5" strokeWidth="12" />
+                        {/* Success Arc */}
+                        {successRate > 0 && (
+                          <circle
+                            cx="50"
+                            cy="50"
+                            r="38"
+                            fill="transparent"
+                            stroke="#18181b"
+                            strokeWidth="12"
+                            strokeDasharray={`${(successRate / 100) * 238.76} 238.76`}
+                          />
+                        )}
+                        {/* Failure Arc */}
+                        {100 - successRate > 0 && (
+                          <circle
+                            cx="50"
+                            cy="50"
+                            r="38"
+                            fill="transparent"
+                            stroke="#ef4444"
+                            strokeWidth="12"
+                            strokeDasharray={`${((100 - successRate) / 100) * 238.76} 238.76`}
+                            strokeDashoffset={-((successRate / 100) * 238.76)}
+                          />
+                        )}
+                      </svg>
+                      <div className="absolute inset-0 flex flex-col items-center justify-center">
+                        <span className="text-sm font-semibold text-zinc-950 font-mono leading-none">{successRate}%</span>
+                        <span className="text-[8px] font-mono text-zinc-400 uppercase tracking-tighter mt-0.5 leading-none">Success</span>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-1.5 text-xs">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-zinc-900"></div>
+                        <span className="text-zinc-500 font-mono text-[11px]"><strong className="text-zinc-900 font-medium">{successfulTries}</strong> Successes</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                        <span className="text-zinc-500 font-mono text-[11px]"><strong className="text-zinc-950 font-medium">{failedTries}</strong> Failures</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Mode & Garment Type Splits */}
+                  <div className="flex flex-col gap-3 border-t border-zinc-100 pt-3">
+                    {/* Mode Split Bar */}
+                    <div className="flex flex-col gap-1">
+                      <span className="text-[10px] font-mono text-zinc-400 uppercase tracking-wider">Garment Mode Split</span>
+                      <div className="h-2 w-full rounded-full bg-zinc-100 overflow-hidden flex">
+                        {totalTries > 0 && (
+                          <>
+                            <div style={{ width: `${(modeDistribution.link / totalTries) * 100}%` }} className="bg-zinc-900 h-full" title={`Link: ${modeDistribution.link}`} />
+                            <div style={{ width: `${(modeDistribution.upload / totalTries) * 100}%` }} className="bg-zinc-500 h-full" title={`Upload: ${modeDistribution.upload}`} />
+                            <div style={{ width: `${(modeDistribution.camera / totalTries) * 100}%` }} className="bg-zinc-300 h-full" title={`Camera: ${modeDistribution.camera}`} />
+                          </>
+                        )}
+                      </div>
+                      <div className="flex items-center justify-between text-[9px] font-mono text-zinc-500">
+                        <span>🔗 Link ({modeDistribution.link})</span>
+                        <span>📁 Upload ({modeDistribution.upload})</span>
+                        <span>📸 Camera ({modeDistribution.camera})</span>
+                      </div>
+                    </div>
+
+                    {/* Garment Type Split Bar */}
+                    <div className="flex flex-col gap-1">
+                      <span className="text-[10px] font-mono text-zinc-400 uppercase tracking-wider">Garment Type Split</span>
+                      <div className="h-2 w-full rounded-full bg-zinc-100 overflow-hidden flex">
+                        {totalTries > 0 && (
+                          <>
+                            <div style={{ width: `${(garmentTypeDistribution.tops / totalTries) * 100}%` }} className="bg-zinc-900 h-full" title={`Tops: ${garmentTypeDistribution.tops}`} />
+                            <div style={{ width: `${(garmentTypeDistribution.bottoms / totalTries) * 100}%` }} className="bg-zinc-500 h-full" title={`Bottoms: ${garmentTypeDistribution.bottoms}`} />
+                            <div style={{ width: `${(garmentTypeDistribution.dress / totalTries) * 100}%` }} className="bg-zinc-300 h-full" title={`Dresses: ${garmentTypeDistribution.dress}`} />
+                          </>
+                        )}
+                      </div>
+                      <div className="flex items-center justify-between text-[9px] font-mono text-zinc-500">
+                        <span>👕 Top ({garmentTypeDistribution.tops})</span>
+                        <span>👖 Bottom ({garmentTypeDistribution.bottoms})</span>
+                        <span>👗 Dress ({garmentTypeDistribution.dress})</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Stats Table / List */}
             <div className="bg-white border border-zinc-200 rounded-xl shadow-sm overflow-hidden flex-1">
               <div className="px-6 py-4 border-b border-zinc-200 flex items-center justify-between">
@@ -409,14 +632,18 @@ export default function Dashboard() {
 
                     {/* Metadata summary */}
                     <div className="bg-white border border-zinc-200 rounded-xl p-4 flex flex-col gap-3 text-sm mb-6">
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div>
                           <p className="text-[11px] font-mono uppercase text-zinc-400">Timestamp</p>
                           <p className="font-medium text-zinc-850 mt-0.5">{formatDate(inspectItem.timestamp)}</p>
                         </div>
                         <div>
-                          <p className="text-[11px] font-mono uppercase text-zinc-400">Garment Source Mode</p>
+                          <p className="text-[11px] font-mono uppercase text-zinc-400">Garment Mode</p>
                           <p className="font-medium text-zinc-850 capitalize mt-0.5">{inspectItem.garmentMode}</p>
+                        </div>
+                        <div>
+                          <p className="text-[11px] font-mono uppercase text-zinc-400">Garment Type</p>
+                          <p className="font-medium text-zinc-850 capitalize mt-0.5">{inspectItem.garmentType || "tops"}</p>
                         </div>
                       </div>
 

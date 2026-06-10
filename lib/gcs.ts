@@ -129,6 +129,7 @@ export async function saveTryOnRecord({
   id,
   timestamp,
   garmentMode,
+  garmentType,
   productUrl,
   personImageBase64,
   productImageBase64,
@@ -139,6 +140,7 @@ export async function saveTryOnRecord({
   id: string;
   timestamp: string;
   garmentMode: string;
+  garmentType?: string;
   productUrl: string;
   personImageBase64?: string;
   productImageBase64?: string;
@@ -178,6 +180,7 @@ export async function saveTryOnRecord({
       id,
       timestamp,
       garmentMode,
+      garmentType: garmentType || "tops",
       productUrl: garmentMode === "link" ? productUrl : "",
       status,
       error: error || null,

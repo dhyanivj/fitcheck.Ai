@@ -12,6 +12,7 @@ import {
   X,
   Download,
   Clipboard,
+  Shirt,
 } from "lucide-react";
 
 export default function Home() {
@@ -20,10 +21,13 @@ export default function Home() {
   const [isScraping, setIsScraping] = useState(false);
   const [scrapedImageUrl, setScrapedImageUrl] = useState("");
   const [scrapeError, setScrapeError] = useState("");
+  const [suggestedImages, setSuggestedImages] = useState<{ url: string; title: string; thumbnail: string }[]>([]);
+  const [isSearchingImages, setIsSearchingImages] = useState(false);
   const scrapePromiseRef = useRef<Promise<string | null> | null>(null);
 
   // Garment Mode State
   const [garmentMode, setGarmentMode] = useState<"link" | "upload" | "camera">("link");
+  const [garmentType, setGarmentType] = useState<"auto" | "tops" | "bottoms" | "dress">("auto");
   const garmentFileInputRef = useRef<HTMLInputElement>(null);
   const [isGarmentCameraActive, setIsGarmentCameraActive] = useState(false);
   const [garmentCameraError, setGarmentCameraError] = useState("");
@@ -99,6 +103,7 @@ export default function Home() {
   const executeScrape = async (url: string) => {
     setIsScraping(true);
     setScrapeError("");
+    setSuggestedImages([]);
     try {
       const response = await fetch("/api/scrape", {
         method: "POST",
@@ -106,10 +111,16 @@ export default function Home() {
         body: JSON.stringify({ url }),
       });
 
-      const data = await response.json();
+      let data: any = {};
+      const responseText = await response.text();
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseErr) {
+        data = { error: responseText || `HTTP Error ${response.status}: ${response.statusText}` };
+      }
 
       if (!response.ok) {
-        throw new Error(data.error || "Failed to extract product image.");
+        throw new Error(data.error || `Failed to extract product image: ${response.statusText || response.status}`);
       }
 
       setScrapedImageUrl(data.productImageUrl);
@@ -117,9 +128,30 @@ export default function Home() {
     } catch (err: any) {
       console.error(err);
       setScrapeError(err.message || "Unable to extract garment from this URL.");
+      triggerImageSearch(url);
       return null;
     } finally {
       setIsScraping(false);
+    }
+  };
+
+  const triggerImageSearch = async (query: string) => {
+    setIsSearchingImages(true);
+    setSuggestedImages([]);
+    try {
+      const response = await fetch("/api/image-search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query }),
+      });
+      const data = await response.json();
+      if (data.images && data.images.length > 0) {
+        setSuggestedImages(data.images);
+      }
+    } catch (err) {
+      console.error("Image search fallback failed:", err);
+    } finally {
+      setIsSearchingImages(false);
     }
   };
 
@@ -133,6 +165,7 @@ export default function Home() {
     setProductUrl(e.target.value);
     setScrapedImageUrl(""); // Reset extraction if URL changes
     setScrapeError("");
+    setSuggestedImages([]);
   };
 
   const handlePasteProductUrl = async () => {
@@ -143,6 +176,7 @@ export default function Home() {
         setProductUrl(trimmedText);
         setScrapedImageUrl("");
         setScrapeError("");
+        setSuggestedImages([]);
         scrapePromiseRef.current = executeScrape(trimmedText);
       }
     } catch (err) {
@@ -154,6 +188,7 @@ export default function Home() {
     setProductUrl("");
     setScrapedImageUrl("");
     setScrapeError("");
+    setSuggestedImages([]);
   };
 
   const startCamera = async () => {
@@ -338,14 +373,21 @@ export default function Home() {
           personImageBase64: userImage,
           productImageBase64: finalScrapedUrl,
           garmentMode,
+          garmentType,
           productUrl: garmentMode === "link" ? productUrl : "",
         }),
       });
 
-      const data = await response.json();
+      let data: any = {};
+      const responseText = await response.text();
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseErr) {
+        data = { error: responseText || `HTTP Error ${response.status}: ${response.statusText}` };
+      }
 
       if (!response.ok) {
-        throw new Error(data.details || data.error || "Generation failed.");
+        throw new Error(data.details || data.error || `Generation failed: ${response.statusText || response.status}`);
       }
 
       setResultImage(data.generatedImageBase64);
@@ -469,6 +511,31 @@ export default function Home() {
             Garment Image
           </label>
 
+          {/* Garment Type Selector */}
+          <div className="flex p-[3px] rounded-lg bg-zinc-100/80 border border-zinc-200/60 w-fit">
+            {([
+              { key: "auto" as const, label: "Auto Detect", icon: "✨" },
+              { key: "tops" as const, label: "Top", icon: "👕" },
+              { key: "bottoms" as const, label: "Bottom", icon: "👖" },
+              { key: "dress" as const, label: "Dress", icon: "👗" },
+            ]).map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => setGarmentType(item.key)}
+                className={`relative px-3.5 py-1.5 rounded-md text-[13px] font-medium flex items-center gap-1.5 transition-all ${garmentType === item.key
+                  ? "text-zinc-900"
+                  : "text-zinc-500 hover:text-zinc-700 hover:bg-zinc-200/50"
+                }`}
+              >
+                {garmentType === item.key && (
+                  <motion.div layoutId="garmentTypeTab" className="absolute inset-0 bg-white rounded-md shadow-[0_1px_3px_rgba(0,0,0,0.05)] border border-zinc-200/50" />
+                )}
+                <span className="relative z-10 flex items-center gap-1.5">{item.icon} {item.label}</span>
+              </button>
+            ))}
+          </div>
+
           {/* Garment Selector Tabs */}
           <div className="flex p-[3px] rounded-lg bg-zinc-100/80 border border-zinc-200/60 w-fit">
             <button
@@ -573,41 +640,110 @@ export default function Home() {
                     )}
                   </div>
                 </div>
-                {/* Fallback Manual Upload Option on Scrape Failure */}
+
+                {/* Visual Confirmation of successfully scraped/selected URL image */}
+                {scrapedImageUrl && !scrapeError && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mt-3 p-2 bg-white border border-zinc-200 rounded-lg flex items-center gap-3 w-fit shadow-sm animate-in fade-in slide-in-from-bottom-1"
+                  >
+                    <div className="relative w-12 h-16 rounded overflow-hidden border border-zinc-100 bg-zinc-50 shrink-0">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={scrapedImageUrl} className="w-full h-full object-contain" alt="Extracted product" />
+                    </div>
+                    <div className="flex flex-col gap-0.5 pr-2">
+                      <span className="text-[10px] font-mono text-emerald-600 font-semibold uppercase tracking-wider">✓ Extracted Successfully</span>
+                      <span className="text-xs text-zinc-500 max-w-[200px] truncate">{productUrl}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setScrapedImageUrl("")}
+                      className="p-1 text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 rounded-md transition-colors"
+                      title="Clear image"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </motion.div>
+                )}
+
+                {/* Fallback Manual Upload & Image Search Options on Scrape Failure */}
                 {scrapeError && (
                   <motion.div
                     initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="mt-3 p-4 bg-zinc-50 border border-zinc-200 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                    className="mt-3 p-4 bg-zinc-50 border border-zinc-200 rounded-lg flex flex-col gap-4 shadow-sm"
                   >
-                    <div className="flex-1">
+                    <div>
                       <p className="text-[12px] font-medium text-zinc-700">
                         Auto-extraction failed (Amazon/Flipkart blocked the cloud server).
                       </p>
                       <p className="text-[11px] text-zinc-500 mt-0.5">
-                        You can manually upload the product garment image to continue.
+                        We tried searching online for backup images or you can upload manually.
                       </p>
                     </div>
-                    <div className="shrink-0 flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => garmentFileInputRef.current?.click()}
-                        className="px-3 py-1.5 bg-white border border-zinc-200 hover:bg-zinc-50 text-[12px] font-medium text-zinc-700 rounded-md transition-colors shadow-sm"
-                      >
-                        Upload Image
-                      </button>
-                      <input
-                        type="file"
-                        ref={garmentFileInputRef}
-                        onChange={handleGarmentFileUpload}
-                        accept="image/*"
-                        className="hidden"
-                      />
-                      {scrapedImageUrl && (
-                        <span className="text-[12px] text-emerald-600 font-medium flex items-center gap-1">
-                          ✓ Uploaded
+
+                    {/* Image Search Suggestions Fallback UI */}
+                    {isSearchingImages ? (
+                      <div className="flex items-center gap-2 text-[12px] text-zinc-500 py-1">
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin text-zinc-400" />
+                        Searching for backup product images...
+                      </div>
+                    ) : suggestedImages.length > 0 ? (
+                      <div className="flex flex-col gap-2">
+                        <span className="text-[10px] font-mono text-zinc-400 uppercase tracking-widest font-semibold">
+                          Suggested Images (Click to Select)
                         </span>
-                      )}
+                        <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-thin">
+                          {suggestedImages.map((img, idx) => (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => {
+                                setScrapedImageUrl(img.url);
+                                setScrapeError(""); // clear error to show visual preview
+                              }}
+                              className="relative w-16 h-20 bg-white border border-zinc-200 rounded-lg overflow-hidden shrink-0 hover:border-zinc-400 transition-all p-1 flex items-center justify-center group shadow-sm"
+                              title={img.title}
+                            >
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={img.thumbnail}
+                                alt={img.title}
+                                className="w-full h-full object-contain rounded"
+                              />
+                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors" />
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between border-t border-zinc-200/60 pt-3 gap-3">
+                      <span className="text-[11px] text-zinc-400 font-mono">
+                        Not what you wanted? Use manual override:
+                      </span>
+                      <div className="shrink-0 flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => garmentFileInputRef.current?.click()}
+                          className="px-3 py-1.5 bg-white border border-zinc-200 hover:bg-zinc-50 text-[12px] font-medium text-zinc-700 rounded-md transition-colors shadow-sm"
+                        >
+                          Upload Image
+                        </button>
+                        <input
+                          type="file"
+                          ref={garmentFileInputRef}
+                          onChange={handleGarmentFileUpload}
+                          accept="image/*"
+                          className="hidden"
+                        />
+                        {scrapedImageUrl && (
+                          <span className="text-[12px] text-emerald-600 font-medium flex items-center gap-1">
+                            ✓ Selected
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </motion.div>
                 )}
@@ -628,18 +764,20 @@ export default function Home() {
                   className="w-full h-full object-contain rounded-lg"
                 />
                 <div className="absolute inset-0 bg-zinc-900/0 group-hover:bg-zinc-900/5 transition-colors pointer-events-none rounded-lg" />
-                <button
-                  type="button"
-                  onClick={() => {
-                    setScrapedImageUrl("");
-                    if (garmentMode === "camera") {
-                      startGarmentCamera();
-                    }
-                  }}
-                  className="absolute top-4 right-4 p-1.5 bg-white border border-zinc-200 hover:bg-zinc-50 text-zinc-500 hover:text-zinc-900 rounded-full shadow-sm transition-all"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
+                <div className="absolute top-4 right-4 flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setScrapedImageUrl("");
+                      if (garmentMode === "camera") {
+                        startGarmentCamera();
+                      }
+                    }}
+                    className="p-1.5 bg-white border border-zinc-200 hover:bg-zinc-50 text-zinc-500 hover:text-zinc-900 rounded-full shadow-sm transition-all"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </motion.div>
             ) : garmentMode === "upload" ? (
               <motion.div
@@ -935,7 +1073,7 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="flex flex-col items-center">
+            <div className="flex flex-col items-center gap-4">
               <motion.div
                 whileHover={{ scale: 1.01 }}
                 transition={{ type: "spring", stiffness: 300 }}
@@ -948,6 +1086,9 @@ export default function Home() {
                   className="w-full h-full object-cover rounded-lg"
                 />
               </motion.div>
+              <p className="text-[13px] text-zinc-500 font-medium tracking-tight">
+                If not impressed by the result, try again.
+              </p>
             </div>
           </motion.section>
         )}
