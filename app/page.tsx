@@ -1211,6 +1211,7 @@ export default function Home() {
         className="text-[12px] font-mono text-zinc-500 border-t border-zinc-200 pt-8 mt-auto flex flex-col sm:flex-row items-center justify-between gap-4"
       >
         <span>FitCheck.AI by <a href="https://dhyani.site" target="_blank" rel="noopener noreferrer" className="hover:text-zinc-900 transition-colors">Vijay Dhyani</a> &copy; {new Date().getFullYear()}</span>
+        <span className="text-zinc-400">For feedback and suggestions, mail us at <a href="mailto:hello@dhyani.site" className="text-zinc-500 hover:text-zinc-900 underline transition-colors">hello@dhyani.site</a></span>
         <div className="flex items-center gap-6">
           <a href="#" className="hover:text-zinc-900 transition-colors">Privacy</a>
           <a href="#" className="hover:text-zinc-900 transition-colors">Terms</a>
