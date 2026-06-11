@@ -511,31 +511,6 @@ export default function Home() {
             Garment Image
           </label>
 
-          {/* Garment Type Selector */}
-          <div className="flex p-[3px] rounded-lg bg-zinc-100/80 border border-zinc-200/60 w-fit">
-            {([
-              { key: "auto" as const, label: "Auto Detect", icon: "✨" },
-              { key: "tops" as const, label: "Top", icon: "👕" },
-              { key: "bottoms" as const, label: "Bottom", icon: "👖" },
-              { key: "dress" as const, label: "Dress", icon: "👗" },
-            ]).map((item) => (
-              <button
-                key={item.key}
-                type="button"
-                onClick={() => setGarmentType(item.key)}
-                className={`relative px-3.5 py-1.5 rounded-md text-[13px] font-medium flex items-center gap-1.5 transition-all ${garmentType === item.key
-                  ? "text-zinc-900"
-                  : "text-zinc-500 hover:text-zinc-700 hover:bg-zinc-200/50"
-                }`}
-              >
-                {garmentType === item.key && (
-                  <motion.div layoutId="garmentTypeTab" className="absolute inset-0 bg-white rounded-md shadow-[0_1px_3px_rgba(0,0,0,0.05)] border border-zinc-200/50" />
-                )}
-                <span className="relative z-10 flex items-center gap-1.5">{item.icon} {item.label}</span>
-              </button>
-            ))}
-          </div>
-
           {/* Garment Selector Tabs */}
           <div className="flex p-[3px] rounded-lg bg-zinc-100/80 border border-zinc-200/60 w-fit">
             <button
@@ -856,6 +831,36 @@ export default function Home() {
               </motion.div>
             )}
           </AnimatePresence>
+
+          {/* Garment Type Selector */}
+          <div className="flex flex-col gap-2 mt-2">
+            <span className="text-[11px] font-mono text-zinc-400 uppercase tracking-widest font-semibold">
+              Garment Category
+            </span>
+            <div className="flex p-[3px] rounded-lg bg-zinc-100/80 border border-zinc-200/60 w-fit">
+              {([
+                { key: "auto" as const, label: "Auto Detect", icon: "✨" },
+                { key: "tops" as const, label: "Top", icon: "👕" },
+                { key: "bottoms" as const, label: "Bottom", icon: "👖" },
+                { key: "dress" as const, label: "Dress", icon: "👗" },
+              ]).map((item) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => setGarmentType(item.key)}
+                  className={`relative px-3.5 py-1.5 rounded-md text-[13px] font-medium flex items-center gap-1.5 transition-all ${garmentType === item.key
+                    ? "text-zinc-900"
+                    : "text-zinc-500 hover:text-zinc-700 hover:bg-zinc-200/50"
+                  }`}
+                >
+                  {garmentType === item.key && (
+                    <motion.div layoutId="garmentTypeTab" className="absolute inset-0 bg-white rounded-md shadow-[0_1px_3px_rgba(0,0,0,0.05)] border border-zinc-200/50" />
+                  )}
+                  <span className="relative z-10 flex items-center gap-1.5">{item.icon} {item.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
         </motion.section>
 
         {/* Step 2: Your Photo */}
@@ -1203,15 +1208,14 @@ export default function Home() {
         )}
       </AnimatePresence>
 
-      {/* Footer */}
       <motion.footer
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.5, duration: 0.5 }}
         className="text-[12px] font-mono text-zinc-500 border-t border-zinc-200 pt-8 mt-auto flex flex-col sm:flex-row items-center justify-between gap-4"
       >
-        <span>FitCheck.AI by <a href="https://dhyani.site" target="_blank" rel="noopener noreferrer" className="hover:text-zinc-900 transition-colors">Vijay Dhyani</a> &copy; {new Date().getFullYear()}</span>
-        <span className="text-zinc-400">For feedback and suggestions, mail us at <a href="mailto:hello@dhyani.site" className="text-zinc-500 hover:text-zinc-900 underline transition-colors">hello@dhyani.site</a></span>
+        <span className="text-center sm:text-left">FitCheck.AI by <a href="https://dhyani.site" target="_blank" rel="noopener noreferrer" className="hover:text-zinc-900 transition-colors">Vijay Dhyani</a> &copy; {new Date().getFullYear()}</span>
+        <span className="text-zinc-400 text-center">For feedback and suggestions, mail us at <a href="mailto:hello@dhyani.site" className="text-zinc-500 hover:text-zinc-900 underline transition-colors">hello@dhyani.site</a></span>
         <div className="flex items-center gap-6">
           <a href="#" className="hover:text-zinc-900 transition-colors">Privacy</a>
           <a href="#" className="hover:text-zinc-900 transition-colors">Terms</a>

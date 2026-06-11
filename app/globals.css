@@ -37,3 +37,53 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: #d4d4d8;
 }
+
+/* Decorative Background Patterns */
+.bg-dot-grid {
+  position: absolute;
+  inset: 0;
+  z-index: -10;
+  height: 100%;
+  width: 100%;
+  background-image: radial-gradient(rgba(9, 9, 11, 0.05) 1.5px, transparent 1.5px);
+  background-size: 24px 24px;
+  pointer-events: none;
+  mask-image: radial-gradient(ellipse at 50% 0%, black 60%, transparent 100%);
+  -webkit-mask-image: radial-gradient(ellipse at 50% 0%, black 60%, transparent 100%);
+}
+
+.bg-ambient-glow {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 80rem;
+  height: 600px;
+  pointer-events: none;
+  z-index: -20;
+  overflow: hidden;
+  opacity: 0.6;
+  filter: blur(130px);
+}
+
+.bg-glow-purple {
+  position: absolute;
+  top: -40px;
+  left: 15%;
+  width: 380px;
+  height: 380px;
+  border-radius: 9999px;
+  background-color: rgba(216, 180, 254, 0.25); /* purple-300 with opacity */
+}
+
+.bg-glow-indigo {
+  position: absolute;
+  top: 40px;
+  right: 15%;
+  width: 320px;
+  height: 320px;
+  border-radius: 9999px;
+  background-color: rgba(199, 210, 254, 0.3); /* indigo-200 with opacity */
+}
+

@@ -69,7 +69,18 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col relative overflow-x-hidden">
+        {/* Dotted Grid Pattern Background */}
+        <div className="bg-dot-grid" />
+        
+        {/* Soft Ambient Glows */}
+        <div className="bg-ambient-glow">
+          <div className="bg-glow-purple" />
+          <div className="bg-glow-indigo" />
+        </div>
+
+        {children}
+      </body>
     </html>
   );
 }
