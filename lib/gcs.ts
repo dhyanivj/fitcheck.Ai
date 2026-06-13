@@ -136,6 +136,8 @@ export async function saveTryOnRecord({
   resultImageBase64,
   status,
   error,
+  userThumbnail,
+  garmentThumbnail,
 }: {
   id: string;
   timestamp: string;
@@ -147,6 +149,8 @@ export async function saveTryOnRecord({
   resultImageBase64?: string;
   status: "success" | "failed";
   error?: string | null;
+  userThumbnail?: string | null;
+  garmentThumbnail?: string | null;
 }) {
   try {
     const uploadPromises: Promise<any>[] = [];
@@ -184,6 +188,8 @@ export async function saveTryOnRecord({
       productUrl: garmentMode === "link" ? productUrl : "",
       status,
       error: error || null,
+      userThumbnail: userThumbnail || null,
+      garmentThumbnail: garmentThumbnail || null,
     };
 
     await appendTryOnLog(logEntry);

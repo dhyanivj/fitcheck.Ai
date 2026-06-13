@@ -27,14 +27,39 @@ export async function POST(request: Request) {
   let personImageBase64 = "";
   let productImageBase64 = "";
   let resolvedGarmentType = "tops";
+  let userThumbnail: string | null = null;
+  let garmentThumbnail: string | null = null;
 
   try {
     const body = await request.json();
+    const { onlyLog, status: clientStatus, error: clientError } = body;
+    userThumbnail = body.userThumbnail || null;
+    garmentThumbnail = body.garmentThumbnail || null;
+
     personImageBase64 = body.personImageBase64;
     productImageBase64 = body.productImageBase64;
     garmentMode = body.garmentMode || (productImageBase64?.startsWith("http") ? "link" : "upload");
     garmentType = body.garmentType || "tops";
     productUrl = body.productUrl || "";
+
+    // If client requested only logging a failure (e.g., scrape failure or client-side validation failure)
+    if (onlyLog || clientStatus === "failed") {
+      console.log(`Logging failed attempt from client. ID: ${tryOnId}, Error: ${clientError}`);
+      await saveTryOnRecord({
+        id: tryOnId,
+        timestamp,
+        garmentMode,
+        garmentType,
+        productUrl,
+        personImageBase64,
+        productImageBase64,
+        status: "failed",
+        error: clientError || "Failed in frontend.",
+        userThumbnail,
+        garmentThumbnail,
+      });
+      return NextResponse.json({ logged: true, id: tryOnId });
+    }
 
     // Validate inputs
     if (!personImageBase64 || !productImageBase64) {
@@ -219,6 +244,8 @@ export async function POST(request: Request) {
         productImageBase64,
         status: "failed",
         error: `Vertex AI Error: ${errorMsg}`,
+        userThumbnail,
+        garmentThumbnail,
       }).catch((err) => console.error("Background logging failed:", err));
 
       return NextResponse.json(
@@ -251,6 +278,8 @@ export async function POST(request: Request) {
         productImageBase64,
         status: "failed",
         error: errorMsg,
+        userThumbnail,
+        garmentThumbnail,
       }).catch((err) => console.error("Background logging failed:", err));
 
       return NextResponse.json(
@@ -285,6 +314,8 @@ export async function POST(request: Request) {
         productImageBase64,
         status: "failed",
         error: errorMsg,
+        userThumbnail,
+        garmentThumbnail,
       }).catch((err) => console.error("Background logging failed:", err));
 
       return NextResponse.json(
@@ -311,6 +342,8 @@ export async function POST(request: Request) {
       productImageBase64,
       resultImageBase64: resultBase64,
       status: "success",
+      userThumbnail,
+      garmentThumbnail,
     }).catch((err) => console.error("Background logging failed:", err));
 
     return NextResponse.json({
@@ -330,6 +363,8 @@ export async function POST(request: Request) {
       productImageBase64,
       status: "failed",
       error: error.message || String(error),
+      userThumbnail,
+      garmentThumbnail,
     }).catch((err) => console.error("Background logging failed:", err));
 
     return NextResponse.json(

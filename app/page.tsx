@@ -15,6 +15,44 @@ import {
   Shirt,
 } from "lucide-react";
 
+// Helper to generate a small base64 thumbnail of a base64 or URL image client-side
+function createThumbnail(base64OrUrl: string, maxWidth = 80, maxHeight = 100): Promise<string> {
+  return new Promise((resolve) => {
+    if (!base64OrUrl) return resolve("");
+    const img = new Image();
+    img.crossOrigin = "anonymous"; // bypass canvas CORS issues if URL
+    img.src = base64OrUrl;
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      let width = img.width;
+      let height = img.height;
+
+      if (width > height) {
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        }
+      } else {
+        if (height > maxHeight) {
+          width = Math.round((width * maxHeight) / height);
+          height = maxHeight;
+        }
+      }
+
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (ctx) {
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/jpeg", 0.7)); // 70% quality is very light
+      } else {
+        resolve("");
+      }
+    };
+    img.onerror = () => resolve("");
+  });
+}
+
 export default function Home() {
   // Scraper State
   const [productUrl, setProductUrl] = useState("");
@@ -127,7 +165,7 @@ export default function Home() {
       return data.productImageUrl;
     } catch (err: any) {
       console.error(err);
-      setScrapeError(err.message || "Unable to extract garment from this URL.");
+      setScrapeError(err.message || "Unable to extract garment from this URL. Please take a screenshot of the product and you can upload here.");
       triggerImageSearch(url);
       return null;
     } finally {
@@ -360,9 +398,49 @@ export default function Home() {
     }
 
     if (!finalScrapedUrl) {
-      setPipelineError(scrapeError || "Failed to extract garment. Please check the URL.");
+      const baseError = scrapeError || "Failed to extract garment. Please check the URL.";
+      const finalError = baseError.includes("screenshot of the product")
+        ? baseError
+        : `${baseError} Please take a screenshot of the product and you can upload here.`;
+
+      // Log the failed scrape attempt to the backend!
+      try {
+        const userThumbForFail = await createThumbnail(userImage);
+        fetch("/api/try-on", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            onlyLog: true,
+            status: "failed",
+            error: finalError,
+            personImageBase64: userImage,
+            productUrl: productUrl,
+            garmentMode,
+            garmentType,
+            userThumbnail: userThumbForFail,
+          }),
+        }).catch((err) => console.error("Logging failed attempt failed:", err));
+      } catch (logErr) {
+        console.error("Failed to generate thumb for log:", logErr);
+      }
+
+      setPipelineError(finalError);
       setIsProcessing(false);
       return;
+    }
+
+    // Generate thumbnails in parallel for normal try-on run
+    let userThumb = "";
+    let garmentThumb = "";
+    try {
+      const thumbs = await Promise.all([
+        createThumbnail(userImage),
+        finalScrapedUrl ? createThumbnail(finalScrapedUrl) : Promise.resolve("")
+      ]);
+      userThumb = thumbs[0];
+      garmentThumb = thumbs[1];
+    } catch (thumbErr) {
+      console.error("Failed to generate thumbnails:", thumbErr);
     }
 
     try {
@@ -375,6 +453,8 @@ export default function Home() {
           garmentMode,
           garmentType,
           productUrl: garmentMode === "link" ? productUrl : "",
+          userThumbnail: userThumb,
+          garmentThumbnail: garmentThumb,
         }),
       });
 
@@ -651,10 +731,10 @@ export default function Home() {
                   >
                     <div>
                       <p className="text-[12px] font-medium text-zinc-700">
-                        Auto-extraction failed (Amazon/Flipkart blocked the cloud server).
+                        Image extraction failed (This e-commerce site blocked our cloud server).
                       </p>
                       <p className="text-[11px] text-zinc-500 mt-0.5">
-                        We tried searching online for backup images or you can upload manually.
+                        You can use any other website URL or take a screenshot of the product and upload here.
                       </p>
                     </div>
 
@@ -696,7 +776,7 @@ export default function Home() {
 
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between border-t border-zinc-200/60 pt-3 gap-3">
                       <span className="text-[11px] text-zinc-400 font-mono">
-                        Not what you wanted? Use manual override:
+                        Not what you wanted? Just take screenshot of the product and upload here.
                       </span>
                       <div className="shrink-0 flex items-center gap-2">
                         <button
@@ -771,7 +851,7 @@ export default function Home() {
                     <Upload className="w-5 h-5 text-zinc-400 group-hover:text-zinc-600 transition-colors" />
                   </motion.div>
                   <div className="text-center">
-                    <p className="text-[14px] font-medium text-zinc-700">Click to upload garment photo</p>
+                    <p className="text-[14px] font-medium text-zinc-700">Click to upload garment photo or screenshot from any website</p>
                     <p className="text-[12px] text-zinc-500 mt-1">JPEG or PNG (Max 5MB)</p>
                   </div>
                   <input
@@ -851,7 +931,7 @@ export default function Home() {
                   className={`relative px-3.5 py-1.5 rounded-md text-[13px] font-medium flex items-center gap-1.5 transition-all ${garmentType === item.key
                     ? "text-zinc-900"
                     : "text-zinc-500 hover:text-zinc-700 hover:bg-zinc-200/50"
-                  }`}
+                    }`}
                 >
                   {garmentType === item.key && (
                     <motion.div layoutId="garmentTypeTab" className="absolute inset-0 bg-white rounded-md shadow-[0_1px_3px_rgba(0,0,0,0.05)] border border-zinc-200/50" />

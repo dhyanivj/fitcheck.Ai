@@ -25,6 +25,8 @@ interface StatsEntry {
   productUrl?: string;
   status: "success" | "failed";
   error?: string | null;
+  userThumbnail?: string | null;
+  garmentThumbnail?: string | null;
 }
 
 interface EntryDetails {
@@ -540,6 +542,7 @@ export default function Dashboard() {
                   <table className="w-full text-left text-sm border-collapse">
                     <thead>
                       <tr className="bg-zinc-50 text-[11px] font-mono text-zinc-400 uppercase tracking-wider border-b border-zinc-200">
+                        <th className="px-6 py-3 font-medium">Preview</th>
                         <th className="px-6 py-3 font-medium">Time</th>
                         <th className="px-6 py-3 font-medium">Try-On ID</th>
                         <th className="px-6 py-3 font-medium">Garment Mode</th>
@@ -554,6 +557,34 @@ export default function Dashboard() {
                           className="hover:bg-zinc-50 transition-colors group cursor-pointer"
                           onClick={() => handleInspect(item)}
                         >
+                          <td className="px-6 py-3 whitespace-nowrap">
+                            <div className="flex items-center gap-1.5">
+                              {item.userThumbnail ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  src={item.userThumbnail}
+                                  alt="User"
+                                  className="w-8 h-10 object-cover rounded border border-zinc-200 shadow-sm"
+                                />
+                              ) : (
+                                <div className="w-8 h-10 bg-zinc-100 rounded border border-zinc-200/60 flex items-center justify-center text-[9px] text-zinc-400 font-mono">
+                                  User
+                                </div>
+                              )}
+                              {item.garmentThumbnail ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  src={item.garmentThumbnail}
+                                  alt="Garment"
+                                  className="w-8 h-10 object-contain rounded border border-zinc-200 shadow-sm bg-white"
+                                />
+                              ) : (
+                                <div className="w-8 h-10 bg-zinc-100 rounded border border-zinc-200/60 flex items-center justify-center text-[9px] text-zinc-400 font-mono">
+                                  Garm
+                                </div>
+                              )}
+                            </div>
+                          </td>
                           <td className="px-6 py-4 whitespace-nowrap text-zinc-900 font-medium">
                             {formatDate(item.timestamp)}
                           </td>
